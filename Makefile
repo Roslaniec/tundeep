@@ -15,7 +15,8 @@ ifeq ($(MY_OS), Cygwin)
 	CFLAGS=-s -I -O3 -Wall -W -D_COMPRESS -lz -lpthread -lwpcap
 else
 	#Linux
-	CFLAGS=-s -I -O3 -Wall -W -D_LINUX -D_COMPRESS -lz -lpthread -lpcap
+	# CFLAGS=-s -I -O3 -Wall -W -D_LINUX -D_COMPRESS -lz -lpthread -lpcap
+	CFLAGS=-s -O3 -Wall -Wextra -Wno-stringop-truncation -D_LINUX -lpthread -lpcap
 endif
 
 tundeep: main.o pcap.o threads.o recv.o misc.o sock.o tap.o

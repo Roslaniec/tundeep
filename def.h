@@ -100,6 +100,7 @@ extern int tap_fd;
 extern char *tap_mac;
 extern char *bpf;
 extern short int udpmode;
+extern short int onedir;
 extern short int ipv6;
 extern short int compmode;
 extern short int cksum;

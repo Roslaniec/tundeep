@@ -41,7 +41,7 @@ void send_received_packet(char *s, int plen)
 		if (!compmode)
 		{
 		#endif
-			nwrite = cwrite(connected, (char *)&l, sizeof(l));
+			if (!udpmode) nwrite = cwrite(connected, (char *)&l, sizeof(l));
 			nwrite = cwrite(connected, s, plen);
 			debug(4, 0, "sending packet of %d (%d) bytes", plen, nwrite);
 		#ifdef _COMPRESS
@@ -94,6 +94,7 @@ void injection_process(int len, const u_char *packet)
 	switch(tunorif)
 	{
 		case IFACE:
+			if (onedir) break; // don't write to libpcap interface
 			if (pcap_sendpacket(descr, packet, len)==-1)
 		        {
 		                debug(1, 0, "error: pcap_sendpacket (%d), -1", len);

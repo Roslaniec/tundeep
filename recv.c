@@ -14,7 +14,8 @@
 */
 #include "def.h"
 
-#ifdef _COMPRESS
+char recvbuf[MAX_PCAP_SIZ];
+
 
 char *rdata(int fd, int len)
 {
@@ -65,6 +66,7 @@ int findcksum(int fd)
 	return fd;
 }
 
+#ifdef _COMPRESS
 int recvdata_c(int s)
 {
 	//unsigned int _tap_uncompress(char **dst, unsigned int ucompSize, char *comp);
@@ -114,6 +116,21 @@ int recvdata_c(int s)
 }
 #endif
 
+
+int recvdata_udp(int s)
+{
+	size_t nread = recvfrom(s, recvbuf, sizeof recvbuf, 0, NULL, NULL);
+	if (nread == 0)
+	{
+		debug(1, 1, "nread == 0");
+	}
+	if (nread) {
+		injection_process(nread, (const u_char *)recvbuf);
+	}
+	return 0;
+}
+
+
 int recvdata(int s)
 {
         char *recv_pkt = NULL;
@@ -122,6 +139,7 @@ int recvdata(int s)
 	{
 		findcksum(s);
 	}
+	if (udpmode) return recvdata_udp(s);
 	recv_pkt = rdata(s, sizeof(plength));
 	memcpy((char *)&plength, recv_pkt, sizeof(plength));
 	free(recv_pkt);

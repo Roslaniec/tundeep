@@ -30,6 +30,7 @@ unsigned short int tunorif = 0; /* [tun==1, if==2] */
 char *tap_ip, *tap_mac, *tap_mask = NULL;
 char *bpf = NULL;
 short int udpmode = 0;
+short int onedir = 0;
 short int ipv6 = 0;
 short int tap6 = 0;
 short int cksum = 1;
@@ -46,6 +47,7 @@ void usage()
 	fprintf(stderr, "Usage: tundeep [-a] <-i iface> <-h ip> <-p port> [-6] [-C] <-c|-s> ");
 	fprintf(stderr, "[-b bpf] [-d udp mode] [-e udp remote] [-K]\n\n");
 	#endif
+	fprintf(stderr, "-1 one direction (from iface to socket and from socket to tap)\n");
 	fprintf(stderr, "-6 IPv6 mode\n");
 	fprintf(stderr, "-C compress mode\n");
 	fprintf(stderr, "-K disable checksum\n");
@@ -77,14 +79,17 @@ int main(int argc,char **argv)
 	pcap_if_t *alldevsp, *device;
 	char errbuf[PCAP_ERRBUF_SIZE];
 	#ifdef _LINUX
-	while ( ((c = getopt(argc, argv, "6CKe:dai:T:t:u:h:p:csb:x:y:")) != -1) && (actr < 32) )
+	while ( ((c = getopt(argc, argv, "16CKe:dai:T:t:u:h:p:csb:x:y:")) != -1) && (actr < 32) )
 	#else
-	while ( ((c = getopt(argc, argv, "6CKe:dab:i:h:p:cs")) != -1) && (actr < 32) )
+	while ( ((c = getopt(argc, argv, "16CKe:dab:i:h:p:cs")) != -1) && (actr < 32) )
 	#endif
 	{
 		a[actr] = c; actr++;
 		switch(c)
 		{
+			case '1':
+				onedir = 1;
+				break;
 			case 'C':
 				compmode = 1;
 				break;
@@ -95,8 +100,7 @@ int main(int argc,char **argv)
 				ipv6 = 1;
 				break;
 			case 'b':
-				bpf = malloc(strlen(optarg)+1);
-				strncpy(bpf, optarg, strlen(optarg));
+				bpf = strdup(optarg);
 				break;
 			case 'a':
 				//interface
@@ -160,6 +164,7 @@ int main(int argc,char **argv)
 				break;
 			case 'd':
 				udpmode = 1;
+				cksum = 0;
 				break;
 			#ifdef _LINUX
 			case 't':
@@ -272,22 +277,17 @@ int main(int argc,char **argv)
 		debug(2, 1, "pcap_open_live");
 	}
 
-	if (bpf == NULL)
+	if (bpf)
 	{
-		bpf = malloc(1);
-		memcpy(bpf, "\0", 1);
-	}
-	/* Now we'll compile the filter expression*/
-	if(pcap_compile(descr, &fp,bpf, 0, netp) == -1) { //no search
-		fprintf(stderr, "Error calling pcap_compile\n");
-		debug(2, 1, "pcap_compile");
-	}
-	free(bpf);
-
-	/* set the filter */
-	if(pcap_setfilter(descr, &fp) == -1) {
-		fprintf(stderr, "Error setting filter\n");
-		debug(2, 1, "pcap filter");
+		/* Now we'll compile the filter expression*/
+		if(pcap_compile(descr, &fp,bpf, 0, netp) == -1) { //no search
+			fprintf(stderr, "Error calling pcap_compile\n");
+			debug(2, 1, "pcap_compile");
+		} else if(pcap_setfilter(descr, &fp) == -1) { /* set the filter */
+			fprintf(stderr, "Error setting filter\n");
+			debug(2, 1, "pcap filter");
+		}
+		free(bpf);
 	}
 
 	/* Now we set up the socket */
@@ -298,11 +298,14 @@ int main(int argc,char **argv)
 
 	/* Now launch the threads */
 
-        if (pthread_create(&(tid[0]), NULL, &thread_func, "") != 0) //read from br0 and write to socket
+	//read from br0 and write to socket
+	if ((!onedir || tunorif == IFACE) && pthread_create(&(tid[0]), NULL, &thread_func, "") != 0)
 	{
 		debug (1, 1, "Thread creation failed");
 	}
-	if (pthread_create(&(tid[1]), NULL, &thread_func, "") != 0) //read from socket and write to br0
+
+	// read from socket and write to br0:
+	if ((!onedir || tunorif == TUN) && pthread_create(&(tid[1]), NULL, &thread_func, "") != 0) 
 	{
 		debug (1, 1, "Thread creation failed");
 	}
