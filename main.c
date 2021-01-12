@@ -35,6 +35,9 @@ short int ipv6 = 0;
 short int tap6 = 0;
 short int cksum = 1;
 short int compmode = 0;
+#ifdef _LINUX
+short int iff_flags = IFF_TAP | IFF_NO_PI;
+#endif
 
 void usage()
 {
@@ -42,7 +45,7 @@ void usage()
 	fprintf(stderr, "*** tundeep v%s by Adam Palmer <adam@adampalmer.me> ***\n", VER);
 	#ifdef _LINUX
 	fprintf(stderr, "Usage: tundeep <-i iface|[-t|-T] tapiface> <-h ip> <-p port> [-6] [-C] <-c|-s> ");
-	fprintf(stderr, "[-x tapip] [-y tapmask] [-u tapmac] [-b bpf] [-d udp mode] [-e udp remote] [-K]\n\n");
+	fprintf(stderr, "[-x tapip] [-y tapmask] [-u tapmac] [-b bpf] [-d udp mode] [-e udp remote] [-m] [-K]\n\n");
 	#else
 	fprintf(stderr, "Usage: tundeep [-a] <-i iface> <-h ip> <-p port> [-6] [-C] <-c|-s> ");
 	fprintf(stderr, "[-b bpf] [-d udp mode] [-e udp remote] [-K]\n\n");
@@ -63,6 +66,7 @@ void usage()
 	#ifdef _LINUX
 	fprintf(stderr, "-t tap interface \n");
 	fprintf(stderr, "-T ipv6 tap interface \n");
+	fprintf(stderr, "-m tap multi_queue \n");
 	fprintf(stderr, "-u tap mac \n");
 	fprintf(stderr, "-x if -t mode, set iface ip, if -T mode, set iface ipv6 ip\n");
 	fprintf(stderr, "-y if -t mode, set iface mask, if -T mode, set iface ipv6 prefixlen\n");
@@ -79,7 +83,7 @@ int main(int argc,char **argv)
 	pcap_if_t *alldevsp, *device;
 	char errbuf[PCAP_ERRBUF_SIZE];
 	#ifdef _LINUX
-	while ( ((c = getopt(argc, argv, "16CKe:dai:T:t:u:h:p:csb:x:y:")) != -1) && (actr < 32) )
+	while ( ((c = getopt(argc, argv, "16CKe:dai:T:t:mu:h:p:csb:x:y:")) != -1) && (actr < 32) )
 	#else
 	while ( ((c = getopt(argc, argv, "16CKe:dab:i:h:p:cs")) != -1) && (actr < 32) )
 	#endif
@@ -178,6 +182,10 @@ int main(int argc,char **argv)
 				tap6 = 1;
 				tunorif = TUN;
 				break;
+			case 'm':
+				//tap multi_queue
+				iff_flags |=  IFF_MULTI_QUEUE;
+				break;
 			case 'u':
 				//tap mac
 				tap_mac = malloc(18);
@@ -251,7 +259,7 @@ int main(int argc,char **argv)
 	if (tunorif == TUN)
 	{
 		//set up the tap device
-		if ((tap_fd = tun_alloc(iface, IFF_TAP | IFF_NO_PI)) < 0)
+		if ((tap_fd = tun_alloc(iface, iff_flags)) < 0)
 		{
 			perror("tun/tap failed");
 		}
