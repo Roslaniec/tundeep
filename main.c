@@ -14,6 +14,7 @@
 */
 
 #include "def.h"
+#include <signal.h>
 
 pcap_t* descr;
 pthread_t tid[2];
@@ -21,6 +22,9 @@ int sock, connected, bytes_recv = 0;
 struct sockaddr_in local_addr, remote_addr;
 struct sockaddr_in6 local_addr6, remote_addr6;
 socklen_t sin_size;
+struct sigaction sigact;
+volatile int terminate  = 0;
+volatile int pcap_running = 0;
 
 unsigned short server_mode = 0;
 char hostname[256] = {0};
@@ -30,7 +34,7 @@ unsigned short int tunorif = 0; /* [tun==1, if==2] */
 char *tap_ip, *tap_mac, *tap_mask = NULL;
 char *bpf = NULL;
 short int udpmode = 0;
-short int onedir = 0;
+short int onedir = 0; // 1: TUN (receiver), -1: IFACE (sender)
 short int ipv6 = 0;
 short int tap6 = 0;
 short int cksum = 1;
@@ -72,6 +76,12 @@ void usage()
 	fprintf(stderr, "-y if -t mode, set iface mask, if -T mode, set iface ipv6 prefixlen\n");
 	#endif
 	fprintf(stderr, "--------------------\n\n");
+}
+
+void sig_term_handler(int signum)
+{
+	(void)signum;
+	terminate = 1;
 }
 
 int main(int argc,char **argv)
@@ -208,6 +218,7 @@ int main(int argc,char **argv)
 				break;
 		}
 	}
+	if (onedir && tunorif == IFACE) onedir = -1;
 	a[actr]='\0';
 	if ( ((strchr(a, 's') == NULL) && (strchr(a, 'c') == NULL)) && (strchr(a, 'd') == NULL) )
 	{
@@ -219,12 +230,12 @@ int main(int argc,char **argv)
 		usage();
 		debug(2, 1, "Usage: Option -s and -c can not be specified together");
 	}
-	if ( (strchr(a, 'h') == NULL) || (strchr(a, 'p') == NULL) )
+	if ( (!udpmode && (strchr(a, 'h') == NULL)) || (strchr(a, 'p') == NULL) )
 	{
 		usage();
 		debug(2, 1, "Usage: Options -h and -p are mandatory");
 	}
-	if ( (strchr(a, 'd') != NULL) && (strchr(a, 'e') == NULL) )
+	if ( (strchr(a, 'd') != NULL) && (strchr(a, 'e') == NULL) && onedir <= 0)
 	{
 		usage();
 		debug(2, 1, "Usage: -e endpoint must be specified in UDP mode");
@@ -279,13 +290,15 @@ int main(int argc,char **argv)
 	bpf_u_int32 netp = 0; /* ip */
 
 	/* open device for reading in promiscuous mode */
-	descr = pcap_open_live(iface, MAX_PCAP_SIZ, 1,PCAP_TIMEOUT, errbuf);
-	if(descr == NULL) {
-		printf("pcap_open_live(): %s\n", errbuf);
-		debug(2, 1, "pcap_open_live");
+	if (onedir <= 0) {
+		descr = pcap_open_live(iface, MAX_PCAP_SIZ, 1,PCAP_TIMEOUT, errbuf);
+		if(descr == NULL) {
+			printf("pcap_open_live(): %s\n", errbuf);
+			debug(2, 1, "pcap_open_live");
+		}
 	}
 
-	if (bpf)
+	if (bpf && descr)
 	{
 		/* Now we'll compile the filter expression*/
 		if(pcap_compile(descr, &fp,bpf, 0, netp) == -1) { //no search
@@ -307,18 +320,34 @@ int main(int argc,char **argv)
 	/* Now launch the threads */
 
 	//read from br0 and write to socket
-	if ((!onedir || tunorif == IFACE) && pthread_create(&(tid[0]), NULL, &thread_func, "") != 0)
+	if (onedir <= 0 && pthread_create(&(tid[0]), NULL, &thread_func, "") != 0)
 	{
 		debug (1, 1, "Thread creation failed");
 	}
 
 	// read from socket and write to br0:
-	if ((!onedir || tunorif == TUN) && pthread_create(&(tid[1]), NULL, &thread_func, "") != 0) 
+	if (onedir >= 0 && pthread_create(&(tid[1]), NULL, &thread_func, "") != 0) 
 	{
 		debug (1, 1, "Thread creation failed");
 	}
 
-	for (;;) sleep(10); //don't terminate
+	memset(&sigact, 0, sizeof(sigact));
+	sigact.sa_handler = SIG_IGN;
+	sigaction(SIGHUP, &sigact, NULL);
+	sigact.sa_handler = sig_term_handler;
+	sigaction(SIGTERM, &sigact, NULL);
+	sigaction(SIGINT, &sigact, NULL);
+
+	while (!terminate) sleep(10); // terminate on signal
+
+	// Wait for pcap_loop to finish
+	for (int i = 2000; i && pcap_running; --i) {
+		pcap_breakloop(descr);
+		pthread_kill(tid[0], SIGTERM);
+		usleep(1000);
+	}
+	
+	if (descr) pcap_close(descr);
 
 	return 0;
 }

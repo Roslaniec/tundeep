@@ -28,7 +28,9 @@ void* thread_func(void *arg)
 		{
 			/* loop for callback function */
 			//we're receiving a packet on eth1
+			pcap_running = 1;
 			pcap_loop(descr, 0, pktrecv, NULL); //keep receiving forever
+			pcap_running = 0;
 		} else {
 			#ifdef _LINUX
 			//read from tap

@@ -89,7 +89,7 @@ void pktrecv(u_char *arg, const struct pcap_pkthdr *pkthdr, const u_char *packet
 
 void injection_process(int len, const u_char *packet)
 {
-	debug(5, 0, "Inject Handler Called");
+	debug(5, 0, "Inject Handler Called, size=%i", len);
 
 	switch(tunorif)
 	{

@@ -45,7 +45,7 @@
 #ifndef TUNDEEP_DEFINES
 #define TUNDEEP_DEFINES
 
-#define VER "1.0_20170728"
+#define VER "1.0_20210113"
 #define PCAP_TIMEOUT 10 //Decrease for better performance/high CPU usage. 10 is reasonable
 #define MAX_PCAP_SIZ 65536
 #define DEBUG_LEVEL 1 //max 6
@@ -96,6 +96,7 @@ extern char udpremote[256];
 extern int port;
 extern unsigned short int tunorif;
 extern int tap_fd;
+extern volatile int pcap_running;
 
 extern char *tap_mac;
 extern char *bpf;

@@ -33,13 +33,13 @@ int cwrite(int fd, char *buf, int n)
 			if ((nwrite=sendto(fd, buf, n, 0, (struct sockaddr *)&remote_addr6, sizeof(remote_addr6)))<0)
 			{
 				perror("sendto");
-				debug(1, 1, "Error writing cwrite data");
+				debug(1, 0, "Error writing cwrite data");
 			}
 		} else {
 			if ((nwrite=sendto(fd, buf, n, 0, (struct sockaddr *)&remote_addr, sizeof(remote_addr)))<0)
 			{
 				perror("sendto");
-				debug(1, 1, "Error writing cwrite data");
+				debug(1, 0, "Error writing cwrite data, n=%d", n);
 			}
 		}
 	} else {
@@ -108,8 +108,8 @@ int tun_connect(char *hostname, int port)
 		} else if (!udpmode && !server_mode) {
 			if (!lookup_host (hostname, &remote_addr)) { debug(1, 1, "Host lookup failed"); }
 		} else if (udpmode) {
-			if (!lookup_host (hostname, &local_addr)) { debug(1, 1, "Host lookup failed"); }
-			if (!lookup_host (udpremote, &remote_addr)) { debug(1, 1, "Host lookup failed"); }
+			if (*hostname && !lookup_host (hostname, &local_addr)) { debug(1, 1, "Host lookup failed"); }
+			if (*udpremote && !lookup_host (udpremote, &remote_addr)) { debug(1, 1, "Host lookup failed"); }
 		}
 	} else {
 		if (!udpmode && server_mode)
@@ -118,8 +118,8 @@ int tun_connect(char *hostname, int port)
 		} else if (!udpmode && !server_mode) {
 			if (!lookup_host6 (hostname, &remote_addr6)) { debug(1, 1, "Host lookup failed"); }
 		} else if (udpmode) {
-			if (!lookup_host6 (hostname, &local_addr6)) { debug(1, 1, "Host lookup failed"); }
-			if (!lookup_host6 (udpremote, &remote_addr6)) { debug(1, 1, "Host lookup failed"); }
+			if (*hostname && !lookup_host6 (hostname, &local_addr6)) { debug(1, 1, "Host lookup failed"); }
+			if (*udpremote && !lookup_host6 (udpremote, &remote_addr6)) { debug(1, 1, "Host lookup failed"); }
 		}
 	}
 
